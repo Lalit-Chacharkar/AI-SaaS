@@ -10,7 +10,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: 'https://ai-saas-production-9f5a.up.railway.app/api',
   // baseURL = the prefix added to every request
   // api.get('/health') → http://localhost:5000/api/health
 
