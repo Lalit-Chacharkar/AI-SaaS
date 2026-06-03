@@ -5,11 +5,15 @@
 
 const OpenAI = require('openai');
 
-// Create an OpenAI client instance
-// It automatically reads OPENAI_API_KEY from process.env
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Lazy initialization — only create client when actually needed
+// Prevents crash on startup if OPENAI_API_KEY not set
+let openai = null;
+const getOpenAI = () => {
+  if (!openai) {
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openai;
+};
 
 // ── Content type prompts ──
 // Different "system prompts" for different content types
@@ -46,7 +50,7 @@ const generateContent = async (req, res) => {
     const systemPrompt = systemPrompts[type] || systemPrompts.general;
 
     // ── Call OpenAI API ──
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: 'gpt-4o-mini',
       // gpt-4o-mini = cheapest + fastest model, great for content generation
       // Other options: 'gpt-4o' (smarter but costs more)
