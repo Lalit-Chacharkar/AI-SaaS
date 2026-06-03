@@ -26,7 +26,7 @@ const app = express();
 // CORS = Cross-Origin Resource Sharing
 // Browser blocks requests between different ports by default (security rule)
 // Our frontend (port 5173) talking to backend (port 5000) = blocked without this
-app.use(cors({ origin: 'http://localhost:5173' }));
+app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
 
 // 3. Middleware — app.use() means "run this for EVERY request"
 //    express.json() lets our server READ json data sent by clients
