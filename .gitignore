@@ -1,0 +1,19 @@
+# Dependencies — too large, recreated with npm install
+node_modules/
+
+# Environment files — contains secrets, NEVER commit
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build output
+dist/
+build/
