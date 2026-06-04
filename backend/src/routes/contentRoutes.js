@@ -24,8 +24,10 @@ router.get('/dashboard', protect, (req, res) => {
   });
 });
 
-// ── Route 2: Only 'pro' or 'admin' can generate content ──
-router.post('/generate', protect, restrictTo('pro', 'admin'), generateContent);
+// ── Route 2: All logged-in users can generate content ──
+// Free users are limited to 3 generations (enforced inside generateContent controller)
+// Pro/admin users have unlimited generations
+router.post('/generate', protect, generateContent);
 
 // ── Route 3: Only 'admin' can see all users ──
 router.get('/admin/users', protect, restrictTo('admin'), (req, res) => {

@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────
 
 const OpenAI = require('openai');
+const User = require('../models/User');
 
 // Lazy initialization — only create client when actually needed
 // Prevents crash on startup if OPENAI_API_KEY not set
@@ -44,6 +45,21 @@ const generateContent = async (req, res) => {
 
     if (prompt.length > 500) {
       return res.status(400).json({ message: 'Prompt too long. Max 500 characters.' });
+    }
+
+    // ── Free tier limit check ──
+    // Free users get 3 generations total. Pro/admin = unlimited.
+    const FREE_LIMIT = 3;
+    if (req.user.role === 'user') {
+      const dbUser = await User.findById(req.user.userId);
+      if (dbUser.generationsUsed >= FREE_LIMIT) {
+        return res.status(403).json({
+          message: `Free limit reached (${FREE_LIMIT}/${FREE_LIMIT}). Upgrade to Pro for unlimited generations.`,
+          limitReached: true
+        });
+      }
+      // Increment count before generating
+      await User.findByIdAndUpdate(req.user.userId, { $inc: { generationsUsed: 1 } });
     }
 
     // Pick the right system prompt based on content type
@@ -91,12 +107,19 @@ const generateContent = async (req, res) => {
     // In Phase 8 (Stripe), we'll use this to deduct from user's monthly quota
 
     // ── Send response ──
-    res.status(200).json({
+    // For free users, also return updated count so frontend can show it
+    const responseData = {
       content: generatedContent,
       tokensUsed,
       type,
       model: 'gpt-4o-mini'
-    });
+    };
+    if (req.user.role === 'user') {
+      const updated = await User.findById(req.user.userId);
+      responseData.generationsUsed = updated.generationsUsed;
+      responseData.generationsLimit = 3;
+    }
+    res.status(200).json(responseData);
 
   } catch (error) {
     console.error('OpenAI error:', error.message);

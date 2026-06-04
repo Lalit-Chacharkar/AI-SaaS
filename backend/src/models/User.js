@@ -37,6 +37,13 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ['user', 'pro', 'admin'],  // only these 3 values allowed
       default: 'user'                  // if not provided, defaults to 'user'
+    },
+
+    // Track how many times a free user has generated content
+    // Pro/admin users have unlimited — this only matters for 'user' role
+    generationsUsed: {
+      type: Number,
+      default: 0
     }
   },
   {

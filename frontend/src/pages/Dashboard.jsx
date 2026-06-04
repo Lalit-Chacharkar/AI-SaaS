@@ -26,6 +26,8 @@ const Dashboard = () => {
   const [result, setResult] = useState('');
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState('');
+  const [generationsUsed, setGenerationsUsed] = useState(0);
+  const FREE_LIMIT = 3;
 
   // Check if user just came back from successful Stripe payment
   useEffect(() => {
@@ -60,8 +62,17 @@ const Dashboard = () => {
     try {
       const response = await api.post('/content/generate', { prompt, contentType });
       setResult(response.data.content);
+      // Update free usage counter if backend returns it
+      if (response.data.generationsUsed !== undefined) {
+        setGenerationsUsed(response.data.generationsUsed);
+      }
     } catch (err) {
-      setGenError(err.response?.data?.message || 'Generation failed. Try again.');
+      const msg = err.response?.data?.message || 'Generation failed. Try again.';
+      setGenError(msg);
+      // If limit reached, update counter to show 3/3
+      if (err.response?.data?.limitReached) {
+        setGenerationsUsed(FREE_LIMIT);
+      }
     } finally {
       setGenerating(false);
     }
@@ -87,63 +98,74 @@ const Dashboard = () => {
           <div style={styles.card}>
             <h3>📝 Generate Content</h3>
             <p>Use AI to create blog posts, social media content, and more.</p>
-            {user?.role === 'user' ? (
-              <button
-                style={upgrading ? styles.buttonDisabled : styles.lockedBtn}
-                onClick={handleUpgrade}
-                disabled={upgrading}
-              >
-                {upgrading ? 'Redirecting to Stripe...' : '🔒 Upgrade to Pro - $9.99/mo'}
-              </button>
-            ) : (
-              <div>
-                {/* Content type selector */}
-                <div style={styles.typeRow}>
-                  {CONTENT_TYPES.map(t => (
-                    <button
-                      key={t.value}
-                      style={contentType === t.value ? styles.typeActive : styles.typeBtn}
-                      onClick={() => setContentType(t.value)}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
+
+            {/* Free tier usage bar */}
+            {user?.role === 'user' && (
+              <div style={styles.usageBar}>
+                <span style={styles.usageText}>
+                  Free generations: {generationsUsed}/{FREE_LIMIT}
+                </span>
+                <div style={styles.barTrack}>
+                  <div style={{ ...styles.barFill, width: `${(generationsUsed / FREE_LIMIT) * 100}%`, background: generationsUsed >= FREE_LIMIT ? '#ff6b6b' : '#6c63ff' }} />
                 </div>
-
-                {/* Prompt input */}
-                <textarea
-                  style={styles.textarea}
-                  rows={4}
-                  placeholder="E.g. Write a blog post about the future of AI in healthcare..."
-                  value={prompt}
-                  onChange={e => setPrompt(e.target.value)}
-                  maxLength={500}
-                />
-                <p style={styles.charCount}>{prompt.length}/500</p>
-
-                <button
-                  style={generating || !prompt.trim() ? styles.buttonDisabled : styles.actionBtn}
-                  onClick={handleGenerate}
-                  disabled={generating || !prompt.trim()}
-                >
-                  {generating ? '⏳ Generating...' : '✨ Generate'}
-                </button>
-
-                {/* Error */}
-                {genError && <p style={styles.error}>{genError}</p>}
-
-                {/* Result */}
-                {result && (
-                  <div style={styles.resultBox}>
-                    <div style={styles.resultHeader}>
-                      <strong>Generated Content:</strong>
-                      <button style={styles.copyBtn} onClick={handleCopy}>📋 Copy</button>
-                    </div>
-                    <p style={styles.resultText}>{result}</p>
-                  </div>
+                {generationsUsed >= FREE_LIMIT && (
+                  <p style={styles.limitMsg}>
+                    🔒 Free limit reached!{' '}
+                    <span style={styles.upgradeLink} onClick={handleUpgrade}>Upgrade to Pro</span>
+                    {' '}for unlimited.
+                  </p>
                 )}
               </div>
             )}
+
+            {/* Generate UI — shown to all users, disabled if free limit reached */}
+            <div>
+              {/* Content type selector */}
+              <div style={styles.typeRow}>
+                {CONTENT_TYPES.map(t => (
+                  <button
+                    key={t.value}
+                    style={contentType === t.value ? styles.typeActive : styles.typeBtn}
+                    onClick={() => setContentType(t.value)}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Prompt input */}
+              <textarea
+                style={styles.textarea}
+                rows={4}
+                placeholder="E.g. Write a blog post about the future of AI in healthcare..."
+                value={prompt}
+                onChange={e => setPrompt(e.target.value)}
+                maxLength={500}
+              />
+              <p style={styles.charCount}>{prompt.length}/500</p>
+
+              <button
+                style={generating || !prompt.trim() || (user?.role === 'user' && generationsUsed >= FREE_LIMIT) ? styles.buttonDisabled : styles.actionBtn}
+                onClick={handleGenerate}
+                disabled={generating || !prompt.trim() || (user?.role === 'user' && generationsUsed >= FREE_LIMIT)}
+              >
+                {generating ? '⏳ Generating...' : '✨ Generate'}
+              </button>
+
+              {/* Error */}
+              {genError && <p style={styles.error}>{genError}</p>}
+
+              {/* Result */}
+              {result && (
+                <div style={styles.resultBox}>
+                  <div style={styles.resultHeader}>
+                    <strong>Generated Content:</strong>
+                    <button style={styles.copyBtn} onClick={handleCopy}>📋 Copy</button>
+                  </div>
+                  <p style={styles.resultText}>{result}</p>
+                </div>
+              )}
+            </div>
           </div>
 
           <div style={styles.card}>
@@ -187,6 +209,12 @@ const styles = {
   resultHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' },
   resultText: { whiteSpace: 'pre-wrap', fontSize: '0.9rem', color: '#333', margin: 0 },
   copyBtn: { padding: '0.3rem 0.7rem', background: '#6c63ff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' },
+  usageBar: { marginBottom: '1rem', padding: '0.7rem', background: '#f8f9ff', borderRadius: '6px', border: '1px solid #e0e0ff' },
+  usageText: { fontSize: '0.85rem', color: '#555', display: 'block', marginBottom: '0.4rem' },
+  barTrack: { height: '6px', background: '#e0e0e0', borderRadius: '3px', overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: '3px', transition: 'width 0.3s ease' },
+  limitMsg: { fontSize: '0.82rem', color: '#ff6b6b', marginTop: '0.5rem', marginBottom: 0 },
+  upgradeLink: { color: '#6c63ff', cursor: 'pointer', fontWeight: 'bold', textDecoration: 'underline' },
 };
 
 export default Dashboard;
