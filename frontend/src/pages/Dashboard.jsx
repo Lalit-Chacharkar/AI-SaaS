@@ -8,11 +8,24 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import api from '../api/axios';
 
+// Content types the user can choose from
+const CONTENT_TYPES = [
+  { value: 'blog', label: '📝 Blog Post' },
+  { value: 'social', label: '📱 Social Media' },
+  { value: 'email', label: '📧 Email' },
+  { value: 'general', label: '✨ General' },
+];
+
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [upgrading, setUpgrading] = useState(false);
+  const [prompt, setPrompt] = useState('');
+  const [contentType, setContentType] = useState('blog');
+  const [result, setResult] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState('');
 
   // Check if user just came back from successful Stripe payment
   useEffect(() => {
@@ -39,6 +52,26 @@ const Dashboard = () => {
     navigate('/login');
   };
 
+  const handleGenerate = async () => {
+    if (!prompt.trim()) return;
+    setGenerating(true);
+    setResult('');
+    setGenError('');
+    try {
+      const response = await api.post('/content/generate', { prompt, contentType });
+      setResult(response.data.content);
+    } catch (err) {
+      setGenError(err.response?.data?.message || 'Generation failed. Try again.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(result);
+    alert('✅ Copied to clipboard!');
+  };
+
   return (
     <div style={styles.container}>
       <div style={styles.header}>
@@ -63,7 +96,53 @@ const Dashboard = () => {
                 {upgrading ? 'Redirecting to Stripe...' : '🔒 Upgrade to Pro - $9.99/mo'}
               </button>
             ) : (
-              <button style={styles.actionBtn}>✨ Generate</button>
+              <div>
+                {/* Content type selector */}
+                <div style={styles.typeRow}>
+                  {CONTENT_TYPES.map(t => (
+                    <button
+                      key={t.value}
+                      style={contentType === t.value ? styles.typeActive : styles.typeBtn}
+                      onClick={() => setContentType(t.value)}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Prompt input */}
+                <textarea
+                  style={styles.textarea}
+                  rows={4}
+                  placeholder="E.g. Write a blog post about the future of AI in healthcare..."
+                  value={prompt}
+                  onChange={e => setPrompt(e.target.value)}
+                  maxLength={500}
+                />
+                <p style={styles.charCount}>{prompt.length}/500</p>
+
+                <button
+                  style={generating || !prompt.trim() ? styles.buttonDisabled : styles.actionBtn}
+                  onClick={handleGenerate}
+                  disabled={generating || !prompt.trim()}
+                >
+                  {generating ? '⏳ Generating...' : '✨ Generate'}
+                </button>
+
+                {/* Error */}
+                {genError && <p style={styles.error}>{genError}</p>}
+
+                {/* Result */}
+                {result && (
+                  <div style={styles.resultBox}>
+                    <div style={styles.resultHeader}>
+                      <strong>Generated Content:</strong>
+                      <button style={styles.copyBtn} onClick={handleCopy}>📋 Copy</button>
+                    </div>
+                    <p style={styles.resultText}>{result}</p>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -98,6 +177,16 @@ const styles = {
   actionBtn: { padding: '0.5rem 1rem', background: '#6c63ff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginTop: '0.5rem' },
   lockedBtn: { padding: '0.5rem 1rem', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginTop: '0.5rem' },
   buttonDisabled: { padding: '0.5rem 1rem', background: '#aaa', color: 'white', border: 'none', borderRadius: '4px', cursor: 'not-allowed', marginTop: '0.5rem' },
+  typeRow: { display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.8rem' },
+  typeBtn: { padding: '0.3rem 0.7rem', background: '#f0f2f5', border: '1px solid #ddd', borderRadius: '20px', cursor: 'pointer', fontSize: '0.8rem' },
+  typeActive: { padding: '0.3rem 0.7rem', background: '#6c63ff', color: 'white', border: '1px solid #6c63ff', borderRadius: '20px', cursor: 'pointer', fontSize: '0.8rem' },
+  textarea: { width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid #ddd', fontSize: '0.9rem', resize: 'vertical', boxSizing: 'border-box', marginTop: '0.5rem' },
+  charCount: { fontSize: '0.75rem', color: '#999', margin: '0.2rem 0 0.5rem', textAlign: 'right' },
+  error: { color: '#ff6b6b', fontSize: '0.85rem', marginTop: '0.5rem' },
+  resultBox: { marginTop: '1rem', background: '#f8f9ff', border: '1px solid #e0e0ff', borderRadius: '6px', padding: '1rem' },
+  resultHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' },
+  resultText: { whiteSpace: 'pre-wrap', fontSize: '0.9rem', color: '#333', margin: 0 },
+  copyBtn: { padding: '0.3rem 0.7rem', background: '#6c63ff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' },
 };
 
 export default Dashboard;
